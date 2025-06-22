@@ -39,6 +39,54 @@ A multiplayer tabletop role-playing game web application where players engage in
 
 4. **Open browser:** `http://localhost:5000`
 
+### Adding Database (Optional - for persistent data)
+
+By default, the app runs with in-memory storage. To add persistent PostgreSQL storage:
+
+**Option 1: Local PostgreSQL**
+1. **Install PostgreSQL** on your system
+2. **Create database:**
+   ```sql
+   CREATE DATABASE nerve_combat;
+   ```
+3. **Update `.env` file:**
+   ```env
+   DATABASE_URL=postgresql://username:password@localhost:5432/nerve_combat
+   SESSION_SECRET=demo-secret-key
+   ```
+4. **Initialize database schema:**
+   ```cmd
+   npm run db:push
+   ```
+
+**Option 2: Free Cloud Database (Neon)**
+1. **Sign up at** [neon.tech](https://neon.tech) (free tier available)
+2. **Create a new project** and copy the connection string
+3. **Update `.env` file:**
+   ```env
+   DATABASE_URL=postgresql://username:password@hostname/database?sslmode=require
+   SESSION_SECRET=demo-secret-key
+   ```
+4. **Initialize database schema:**
+   ```cmd
+   npm run db:push
+   ```
+
+**Option 3: Docker PostgreSQL (if you have Docker)**
+1. **Start PostgreSQL container:**
+   ```cmd
+   docker run --name nerve-postgres -e POSTGRES_PASSWORD=password -e POSTGRES_DB=nerve_combat -p 5432:5432 -d postgres:15
+   ```
+2. **Update `.env` file:**
+   ```env
+   DATABASE_URL=postgresql://postgres:password@localhost:5432/nerve_combat
+   SESSION_SECRET=demo-secret-key
+   ```
+3. **Initialize database schema:**
+   ```cmd
+   npm run db:push
+   ```
+
 ### Quick Start (Mac/Linux)
 
 1. **Clone and install:**

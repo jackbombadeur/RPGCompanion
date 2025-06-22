@@ -45,6 +45,137 @@ export interface IStorage {
   getCombatLog(sessionId: number): Promise<CombatLogEntry[]>;
 }
 
+// In-memory storage for demo mode (no database required)
+export class MemStorage implements IStorage {
+  private users: Map<string, User> = new Map();
+  private sessions: Map<number, GameSession> = new Map();
+  private sessionPlayers: Map<string, SessionPlayer> = new Map();
+  private words: Map<number, Word> = new Map();
+  private combatLogs: Map<number, CombatLogEntry> = new Map();
+  private sessionCounter = 1;
+  private wordCounter = 1;
+  private logCounter = 1;
+
+  async getUser(id: string): Promise<User | undefined> {
+    return this.users.get(id);
+  }
+
+  async upsertUser(userData: UpsertUser): Promise<User> {
+    const user: User = {
+      id: userData.id,
+      email: userData.email || null,
+      firstName: userData.firstName || null,
+      lastName: userData.lastName || null,
+      profileImageUrl: userData.profileImageUrl || null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    this.users.set(userData.id, user);
+    return user;
+  }
+
+  async createGameSession(session: InsertGameSession): Promise<GameSession> {
+    const newSession: GameSession = {
+      id: this.sessionCounter++,
+      code: session.code,
+      name: session.name,
+      gmId: session.gmId,
+      encounterSentence: session.encounterSentence || null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    this.sessions.set(newSession.id, newSession);
+    return newSession;
+  }
+
+  async getGameSessionByCode(code: string): Promise<GameSession | undefined> {
+    return Array.from(this.sessions.values()).find(s => s.code === code);
+  }
+
+  async getGameSession(id: number): Promise<GameSession | undefined> {
+    return this.sessions.get(id);
+  }
+
+  async updateEncounterSentence(sessionId: number, sentence: string): Promise<void> {
+    const session = this.sessions.get(sessionId);
+    if (session) {
+      session.encounterSentence = sentence;
+      session.updatedAt = new Date();
+    }
+  }
+
+  async joinSession(player: InsertSessionPlayer): Promise<SessionPlayer> {
+    const newPlayer: SessionPlayer = {
+      sessionId: player.sessionId,
+      userId: player.userId,
+      nerve: player.nerve,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    this.sessionPlayers.set(`${player.sessionId}-${player.userId}`, newPlayer);
+    return newPlayer;
+  }
+
+  async getSessionPlayers(sessionId: number): Promise<SessionPlayer[]> {
+    return Array.from(this.sessionPlayers.values()).filter(p => p.sessionId === sessionId);
+  }
+
+  async updatePlayerNerve(sessionId: number, userId: string, nerve: number): Promise<void> {
+    const key = `${sessionId}-${userId}`;
+    const player = this.sessionPlayers.get(key);
+    if (player) {
+      player.nerve = nerve;
+      player.updatedAt = new Date();
+    }
+  }
+
+  async getPlayerInSession(sessionId: number, userId: string): Promise<SessionPlayer | undefined> {
+    return this.sessionPlayers.get(`${sessionId}-${userId}`);
+  }
+
+  async createWord(word: InsertWord): Promise<Word> {
+    const newWord: Word = {
+      id: this.wordCounter++,
+      sessionId: word.sessionId,
+      text: word.text,
+      category: word.category,
+      potency: word.potency,
+      ownerId: word.ownerId,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    this.words.set(newWord.id, newWord);
+    return newWord;
+  }
+
+  async getSessionWords(sessionId: number): Promise<Word[]> {
+    return Array.from(this.words.values()).filter(w => w.sessionId === sessionId);
+  }
+
+  async getPlayerWords(sessionId: number, ownerId: string): Promise<Word[]> {
+    return Array.from(this.words.values()).filter(w => w.sessionId === sessionId && w.ownerId === ownerId);
+  }
+
+  async addCombatLogEntry(entry: InsertCombatLogEntry): Promise<CombatLogEntry> {
+    const newEntry: CombatLogEntry = {
+      id: this.logCounter++,
+      sessionId: entry.sessionId,
+      userId: entry.userId,
+      action: entry.action,
+      result: entry.result,
+      createdAt: new Date(),
+    };
+    this.combatLogs.set(newEntry.id, newEntry);
+    return newEntry;
+  }
+
+  async getCombatLog(sessionId: number): Promise<CombatLogEntry[]> {
+    return Array.from(this.combatLogs.values())
+      .filter(log => log.sessionId === sessionId)
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+  }
+}
+
 export class DatabaseStorage implements IStorage {
   // User operations
   async getUser(id: string): Promise<User | undefined> {
@@ -172,4 +303,5 @@ export class DatabaseStorage implements IStorage {
   }
 }
 
-export const storage = new DatabaseStorage();
+// Use database storage if DATABASE_URL is provided, otherwise use in-memory storage
+export const storage = process.env.DATABASE_URL ? new DatabaseStorage() : new MemStorage();

@@ -127,3 +127,5 @@ Changelog:
 - June 22, 2025. Initial setup
 - June 22, 2025. Modified authentication system from Replit Auth to Google OAuth for easier local development
 - June 22, 2025. Removed authentication entirely for demo mode - app now works without any login requirements
+- June 22, 2025. Added Windows compatibility with batch scripts and cross-platform startup options
+- June 22, 2025. Implemented dual storage system - in-memory storage by default, PostgreSQL when DATABASE_URL is provided
