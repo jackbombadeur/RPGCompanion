@@ -177,13 +177,21 @@ export class MemStorage implements IStorage {
 }
 
 export class DatabaseStorage implements IStorage {
+  constructor() {
+    if (!db) {
+      throw new Error("Database not initialized. DATABASE_URL is required for DatabaseStorage.");
+    }
+  }
+
   // User operations
   async getUser(id: string): Promise<User | undefined> {
+    if (!db) throw new Error("Database not available");
     const [user] = await db.select().from(users).where(eq(users.id, id));
     return user;
   }
 
   async upsertUser(userData: UpsertUser): Promise<User> {
+    if (!db) throw new Error("Database not available");
     const [user] = await db
       .insert(users)
       .values(userData)
@@ -200,6 +208,7 @@ export class DatabaseStorage implements IStorage {
 
   // Game session operations
   async createGameSession(session: InsertGameSession): Promise<GameSession> {
+    if (!db) throw new Error("Database not available");
     const [newSession] = await db
       .insert(gameSessions)
       .values(session)
@@ -224,6 +233,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async updateEncounterSentence(sessionId: number, sentence: string): Promise<void> {
+    if (!db) throw new Error("Database not available");
     await db
       .update(gameSessions)
       .set({ encounterSentence: sentence })
@@ -232,6 +242,7 @@ export class DatabaseStorage implements IStorage {
 
   // Session player operations
   async joinSession(player: InsertSessionPlayer): Promise<SessionPlayer> {
+    if (!db) throw new Error("Database not available");
     const [newPlayer] = await db
       .insert(sessionPlayers)
       .values(player)
@@ -248,6 +259,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async updatePlayerNerve(sessionId: number, userId: string, nerve: number): Promise<void> {
+    if (!db) throw new Error("Database not available");
     await db
       .update(sessionPlayers)
       .set({ nerve })
@@ -255,6 +267,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getPlayerInSession(sessionId: number, userId: string): Promise<SessionPlayer | undefined> {
+    if (!db) throw new Error("Database not available");
     const [player] = await db
       .select()
       .from(sessionPlayers)
@@ -264,6 +277,7 @@ export class DatabaseStorage implements IStorage {
 
   // Word operations
   async createWord(word: InsertWord): Promise<Word> {
+    if (!db) throw new Error("Database not available");
     const [newWord] = await db
       .insert(words)
       .values(word)
@@ -279,6 +293,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getPlayerWords(sessionId: number, ownerId: string): Promise<Word[]> {
+    if (!db) throw new Error("Database not available");
     return await db
       .select()
       .from(words)
@@ -287,6 +302,7 @@ export class DatabaseStorage implements IStorage {
 
   // Combat log operations
   async addCombatLogEntry(entry: InsertCombatLogEntry): Promise<CombatLogEntry> {
+    if (!db) throw new Error("Database not available");
     const [newEntry] = await db
       .insert(combatLog)
       .values(entry)
@@ -295,6 +311,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getCombatLog(sessionId: number): Promise<CombatLogEntry[]> {
+    if (!db) throw new Error("Database not available");
     return await db
       .select()
       .from(combatLog)
