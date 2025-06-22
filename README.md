@@ -35,7 +35,7 @@ A multiplayer tabletop role-playing game web application where players engage in
    **Or manually:**
    ```cmd
    echo SESSION_SECRET=demo-secret-key > .env
-   set NODE_ENV=development
+   echo NODE_ENV=development >> .env
    node_modules\.bin\tsx server\index.ts
    ```
 
