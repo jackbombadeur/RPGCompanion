@@ -37,7 +37,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Auth routes
   app.get('/api/auth/user', isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user.id;
       const user = await storage.getUser(userId);
       res.json(user);
     } catch (error) {
@@ -49,7 +49,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Game session routes
   app.post('/api/sessions', isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user.id;
       const sessionData = insertGameSessionSchema.parse({
         ...req.body,
         code: generateSessionCode(),
@@ -76,7 +76,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post('/api/sessions/join', isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user.id;
       const { code } = z.object({ code: z.string() }).parse(req.body);
       
       const session = await storage.getGameSessionByCode(code);
@@ -139,7 +139,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/sessions/:id/words', isAuthenticated, async (req: any, res) => {
     try {
       const sessionId = parseInt(req.params.id);
-      const userId = req.user.claims.sub;
+      const userId = req.user.id;
       
       const wordData = insertWordSchema.parse({
         ...req.body,
@@ -166,7 +166,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/sessions/:id/combat', isAuthenticated, async (req: any, res) => {
     try {
       const sessionId = parseInt(req.params.id);
-      const userId = req.user.claims.sub;
+      const userId = req.user.id;
       
       const combatData = insertCombatLogSchema.parse({
         ...req.body,

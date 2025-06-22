@@ -41,8 +41,8 @@ The application uses the following core entities:
 6. **Sessions**: Required table for Express session storage
 
 ### Authentication System
-- **Provider**: Replit Auth integration with mandatory user/session tables
-- **Flow**: OIDC-based authentication with automatic user creation
+- **Provider**: Demo mode with default user (no authentication required)
+- **Flow**: Automatic authentication with demo user for development
 - **Session Management**: Server-side sessions with PostgreSQL storage
 - **Security**: HTTPS-only cookies with 7-day expiration
 
@@ -116,8 +116,6 @@ The application uses the following core entities:
 ### Environment Requirements
 - **DATABASE_URL**: PostgreSQL connection string
 - **SESSION_SECRET**: Secret for session encryption
-- **REPLIT_DOMAINS**: Allowed domains for OIDC
-- **ISSUER_URL**: OIDC issuer URL (defaults to Replit)
 
 ## User Preferences
 
@@ -127,3 +125,5 @@ Preferred communication style: Simple, everyday language.
 
 Changelog:
 - June 22, 2025. Initial setup
+- June 22, 2025. Modified authentication system from Replit Auth to Google OAuth for easier local development
+- June 22, 2025. Removed authentication entirely for demo mode - app now works without any login requirements

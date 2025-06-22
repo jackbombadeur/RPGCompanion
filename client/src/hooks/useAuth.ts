@@ -8,7 +8,7 @@ export function useAuth() {
 
   return {
     user,
-    isLoading,
-    isAuthenticated: !!user,
+    isLoading: false, // Always loaded for demo
+    isAuthenticated: true, // Always authenticated for demo
   };
 }

@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/useAuth";
-import { Dice1, Plus, Users, Crown } from "lucide-react";
+import { Dice1, Plus, Users, Crown, BookOpen } from "lucide-react";
 import { useLocation } from "wouter";
 
 export default function Home() {
@@ -72,7 +72,8 @@ export default function Home() {
   };
 
   const handleLogout = () => {
-    window.location.href = "/api/logout";
+    // For demo, just reload the page
+    window.location.reload();
   };
 
   return (
@@ -87,14 +88,14 @@ export default function Home() {
             </div>
             <div className="flex items-center space-x-4">
               <div className="text-sm text-gray-300">
-                Welcome, {user?.firstName || user?.email}
+                Welcome, {user?.firstName || user?.email || "Demo User"}
               </div>
               <Button 
                 onClick={handleLogout}
                 variant="destructive"
                 size="sm"
               >
-                Logout
+                Reset Demo
               </Button>
             </div>
           </div>

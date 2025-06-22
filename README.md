@@ -36,10 +36,9 @@ A multiplayer tabletop role-playing game web application where players engage in
    ```env
    DATABASE_URL=postgresql://username:password@localhost:5432/nerve_combat
    SESSION_SECRET=your-session-secret-key-here
-   REPLIT_DOMAINS=localhost:5000
-   ISSUER_URL=https://replit.com/oidc
-   REPL_ID=your-repl-id
    ```
+
+   **Note:** Authentication has been removed for demo purposes. The app runs without any login requirements.
 
 4. **Set up the database**
    ```bash
@@ -101,7 +100,7 @@ npm run db:studio
 - **Backend**: Node.js, Express, TypeScript
 - **Database**: PostgreSQL with Drizzle ORM
 - **Real-time**: WebSocket (ws library)
-- **Authentication**: Replit Auth (OpenID Connect)
+- **Authentication**: Demo mode (no auth required)
 - **Build Tool**: Vite
 
 ## Project Structure

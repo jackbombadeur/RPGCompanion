@@ -9,7 +9,8 @@ export default function Landing() {
   const [sessionCode, setSessionCode] = useState("");
 
   const handleLogin = () => {
-    window.location.href = "/api/login";
+    // For demo, just redirect to home
+    window.location.href = "/";
   };
 
   return (
@@ -91,10 +92,10 @@ export default function Landing() {
                 onClick={handleLogin}
                 className="w-full bg-purple-600 hover:bg-purple-700 text-white"
               >
-                Login to Play
+                Enter Game (Demo Mode)
               </Button>
               <p className="text-xs text-gray-400 text-center">
-                You'll be redirected to create or join a session after login
+                Demo mode - no authentication required
               </p>
             </CardContent>
           </Card>
