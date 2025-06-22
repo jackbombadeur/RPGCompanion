@@ -16,49 +16,49 @@ A multiplayer tabletop role-playing game web application where players engage in
 ### Prerequisites
 
 - Node.js 18+ installed
-- PostgreSQL database
+- Optional: PostgreSQL database (for persistent data)
 
-### Installation
+### Quick Start (Windows)
 
-1. **Clone the repository**
-   ```bash
+1. **Clone and install:**
+   ```cmd
    git clone <your-repo-url>
    cd nerve-combat-ttrpg
-   ```
-
-2. **Install dependencies**
-   ```bash
    npm install
    ```
 
-3. **Set up environment variables**
-   Create a `.env` file in the root directory with:
-   ```env
-   DATABASE_URL=postgresql://username:password@localhost:5432/nerve_combat
-   SESSION_SECRET=your-session-secret-key-here
+2. **Create `.env` file:**
+   ```cmd
+   echo SESSION_SECRET=demo-secret-key > .env
    ```
 
-   **Note:** Authentication has been removed for demo purposes. The app runs without any login requirements.
-
-   **For a quick start without PostgreSQL setup:**
-   You can also run with just:
-   ```env
-   SESSION_SECRET=demo-secret-key-change-in-production
+3. **Start the application:**
+   ```cmd
+   start-windows.bat
    ```
-   And the app will use an in-memory database (data won't persist between restarts).
 
-4. **Set up the database**
+4. **Open browser:** `http://localhost:5000`
+
+### Quick Start (Mac/Linux)
+
+1. **Clone and install:**
    ```bash
-   # Create the database schema
-   npm run db:push
+   git clone <your-repo-url>
+   cd nerve-combat-ttrpg
+   npm install
    ```
 
-5. **Start the development server**
+2. **Create `.env` file:**
    ```bash
-   npm run dev
+   echo "SESSION_SECRET=demo-secret-key" > .env
    ```
 
-The application will be available at `http://localhost:5000`
+3. **Start the application:**
+   ```bash
+   ./start-unix.sh
+   ```
+
+4. **Open browser:** `http://localhost:5000`
 
 ### Production Build
 
