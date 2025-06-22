@@ -27,14 +27,16 @@ A multiplayer tabletop role-playing game web application where players engage in
    npm install
    ```
 
-2. **Create `.env` file:**
+2. **Start the application:**
+   ```cmd
+   run-local.bat
+   ```
+   
+   **Or manually:**
    ```cmd
    echo SESSION_SECRET=demo-secret-key > .env
-   ```
-
-3. **Start the application:**
-   ```cmd
-   start-windows.bat
+   set NODE_ENV=development
+   node_modules\.bin\tsx server\index.ts
    ```
 
 4. **Open browser:** `http://localhost:5000`

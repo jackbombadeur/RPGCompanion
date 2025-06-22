@@ -129,3 +129,4 @@ Changelog:
 - June 22, 2025. Removed authentication entirely for demo mode - app now works without any login requirements
 - June 22, 2025. Added Windows compatibility with batch scripts and cross-platform startup options
 - June 22, 2025. Implemented dual storage system - in-memory storage by default, PostgreSQL when DATABASE_URL is provided
+- June 22, 2025. Fixed database initialization to be completely optional - app runs without any database setup

@@ -217,6 +217,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getGameSessionByCode(code: string): Promise<GameSession | undefined> {
+    if (!db) throw new Error("Database not available");
     const [session] = await db
       .select()
       .from(gameSessions)
@@ -225,6 +226,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getGameSession(id: number): Promise<GameSession | undefined> {
+    if (!db) throw new Error("Database not available");
     const [session] = await db
       .select()
       .from(gameSessions)
@@ -251,6 +253,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getSessionPlayers(sessionId: number): Promise<SessionPlayer[]> {
+    if (!db) throw new Error("Database not available");
     return await db
       .select()
       .from(sessionPlayers)
@@ -286,6 +289,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getSessionWords(sessionId: number): Promise<Word[]> {
+    if (!db) throw new Error("Database not available");
     return await db
       .select()
       .from(words)
