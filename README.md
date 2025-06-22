@@ -40,6 +40,13 @@ A multiplayer tabletop role-playing game web application where players engage in
 
    **Note:** Authentication has been removed for demo purposes. The app runs without any login requirements.
 
+   **For a quick start without PostgreSQL setup:**
+   You can also run with just:
+   ```env
+   SESSION_SECRET=demo-secret-key-change-in-production
+   ```
+   And the app will use an in-memory database (data won't persist between restarts).
+
 4. **Set up the database**
    ```bash
    # Create the database schema
