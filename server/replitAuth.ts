@@ -8,8 +8,6 @@ export function getSession() {
   const pgStore = connectPg(session);
   const sessionStore = new pgStore({
     conString: process.env.DATABASE_URL,
-    createTableIfMissing: false,
-    ttl: sessionTtl,
     tableName: "sessions",
   });
   return session({
@@ -25,30 +23,50 @@ export function getSession() {
   });
 }
 
-// Create a default user for demo purposes
-async function createDefaultUser() {
-  const defaultUserId = "demo-user-1";
-  const existingUser = await storage.getUser(defaultUserId);
+// Generate unique user ID
+function generateUserId(): string {
+  return `user-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+}
+
+// Generate unique email
+function generateEmail(): string {
+  const adjectives = ['swift', 'brave', 'mystic', 'shadow', 'golden', 'silver', 'crimson', 'azure', 'emerald', 'violet'];
+  const nouns = ['warrior', 'mage', 'rogue', 'knight', 'archer', 'druid', 'wizard', 'paladin', 'ranger', 'monk'];
+  const numbers = Math.floor(Math.random() * 1000);
+  const adjective = adjectives[Math.floor(Math.random() * adjectives.length)];
+  const noun = nouns[Math.floor(Math.random() * nouns.length)];
+  return `${adjective}.${noun}${numbers}@adventure.com`;
+}
+
+// Generate unique name
+function generateName(): { firstName: string; lastName: string } {
+  const firstNames = ['Aria', 'Thorne', 'Kael', 'Lyra', 'Raven', 'Zephyr', 'Nova', 'Orion', 'Sage', 'Vex'];
+  const lastNames = ['Stormwind', 'Shadowbane', 'Fireheart', 'Moonwhisper', 'Starweaver', 'Darkforge', 'Lightbringer', 'Nightshade', 'Dawnseeker', 'Frostborn'];
   
-  if (!existingUser) {
-    return await storage.upsertUser({
-      id: defaultUserId,
-      email: "demo@example.com",
-      firstName: "Demo",
-      lastName: "User",
-      profileImageUrl: null,
-    });
-  }
+  const firstName = firstNames[Math.floor(Math.random() * firstNames.length)];
+  const lastName = lastNames[Math.floor(Math.random() * lastNames.length)];
   
-  return existingUser;
+  return { firstName, lastName };
+}
+
+// Create a unique user
+async function createUniqueUser() {
+  const userId = generateUserId();
+  const email = generateEmail();
+  const { firstName, lastName } = generateName();
+  
+  return await storage.upsertUser({
+    id: userId,
+    email,
+    firstName,
+    lastName,
+    profileImageUrl: null,
+  });
 }
 
 export async function setupAuth(app: Express) {
   app.set("trust proxy", 1);
   app.use(getSession());
-  
-  // Create default user on startup
-  await createDefaultUser();
 
   // Mock auth routes for demo
   app.get("/api/login", (req, res) => {
@@ -61,8 +79,8 @@ export async function setupAuth(app: Express) {
 }
 
 export const isAuthenticated: RequestHandler = async (req, res, next) => {
-  // For demo purposes, always authenticate with default user
-  const defaultUser = await createDefaultUser();
-  (req as any).user = { id: defaultUser.id, profile: defaultUser };
+  // For demo purposes, create a unique user for each request
+  const uniqueUser = await createUniqueUser();
+  (req as any).user = { id: uniqueUser.id, profile: uniqueUser };
   next();
 };

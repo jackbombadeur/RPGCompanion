@@ -7,6 +7,7 @@ import { Progress } from "@/components/ui/progress";
 import { useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/useAuth";
 import DiceRoller from "./DiceRoller";
 import { Users, Edit, Scroll, Crown } from "lucide-react";
 
@@ -31,8 +32,9 @@ export default function PlayerPanel({
   const [selectedWords, setSelectedWords] = useState<number[]>([]);
   const [diceRoll, setDiceRoll] = useState<number[]>([]);
   const { toast } = useToast();
+  const { user } = useAuth();
 
-  const playerWords = words.filter(w => w.ownerId === currentUser?.id);
+  const playerWords = words.filter(w => w.ownerId === currentUser?.id && w.potency !== null && w.isApproved);
   const wordCount = sentence.trim().split(/\s+/).filter(w => w.length > 0).length;
   const totalPotency = selectedWords.reduce((sum, wordId) => {
     const word = words.find(w => w.id === wordId);
@@ -41,7 +43,10 @@ export default function PlayerPanel({
 
   const submitActionMutation = useMutation({
     mutationFn: async (data: any) => {
-      const response = await apiRequest("POST", `/api/sessions/${sessionId}/combat`, data);
+      const response = await apiRequest("POST", `/api/sessions/${sessionId}/combat`, {
+        ...data,
+        userId: user?.id,
+      });
       return response.json();
     },
     onSuccess: () => {
@@ -96,10 +101,8 @@ export default function PlayerPanel({
     );
   };
 
-  const activePlayer = players.reduce((prev, current) => 
-    (prev.nerve > current.nerve) ? prev : current
-  );
-
+  // Find the active player (the one with isActiveTurn = true)
+  const activePlayer = players.find(p => p.isActiveTurn);
   const isMyTurn = activePlayer?.userId === currentUser?.id;
 
   return (
@@ -113,48 +116,47 @@ export default function PlayerPanel({
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
-          {players
-            .sort((a, b) => b.nerve - a.nerve)
-            .map((player, index) => {
-              const isActive = player.userId === activePlayer?.userId;
-              return (
-                <div
-                  key={player.id}
-                  className={`rounded-lg p-4 ${
-                    isActive 
-                      ? 'bg-yellow-500 bg-opacity-20 border-2 border-yellow-400' 
-                      : 'bg-gray-800'
-                  }`}
-                >
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center space-x-3">
-                      <div className={`w-3 h-3 rounded-full ${
-                        isActive ? 'bg-yellow-400 animate-pulse' : 'bg-gray-500'
-                      }`} />
-                      <span className={`font-semibold ${
-                        isActive ? 'text-yellow-400' : 'text-white'
-                      }`}>
-                        {player.user?.firstName || player.user?.email || 'Player'} 
-                        {isActive && ' (Active Turn)'}
-                      </span>
-                      {player.userId === players.find(p => p.turnOrder === 0)?.userId && (
-                        <Badge className="bg-purple-600">
-                          <Crown className="w-3 h-3 mr-1" />
-                          GM
-                        </Badge>
-                      )}
+          {players && players.length > 0 ? (
+            players
+              .filter(player => player && typeof player === 'object')
+              .map((player, index) => {
+                const isActive = player?.isActiveTurn;
+                return (
+                  <div
+                    key={player?.id || index}
+                    className={`rounded-lg p-4 ${
+                      isActive 
+                        ? 'bg-yellow-500 bg-opacity-20 border-2 border-yellow-400' 
+                        : 'bg-gray-800'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center space-x-3">
+                        <div className={`w-3 h-3 rounded-full ${
+                          isActive ? 'bg-yellow-400 animate-pulse' : 'bg-gray-500'
+                        }`} />
+                        <span className={`font-semibold ${
+                          isActive ? 'text-yellow-400' : 'text-white'
+                        }`}>
+                          {player?.playerName || player?.user?.firstName || player?.user?.email || 'Player'} 
+                          {player?.userId === currentUser?.id && ' (You)'}
+                          {isActive && ' (Active Turn)'}
+                        </span>
+                      </div>
+                      <div className="text-sm font-medium text-white">
+                        Nerve: {player?.nerve || 0}/{player?.maxNerve || 8}
+                      </div>
                     </div>
-                    <div className="text-sm font-medium text-white">
-                      Nerve: {player.nerve}/{player.maxNerve}
-                    </div>
+                    <Progress 
+                      value={((player?.nerve || 0) / (player?.maxNerve || 8)) * 100} 
+                      className="h-2"
+                    />
                   </div>
-                  <Progress 
-                    value={(player.nerve / player.maxNerve) * 100} 
-                    className="h-2"
-                  />
-                </div>
-              );
-            })}
+                );
+              })
+          ) : (
+            <p className="text-gray-400 text-center py-4">No players in session</p>
+          )}
         </CardContent>
       </Card>
 
@@ -193,45 +195,60 @@ export default function PlayerPanel({
                   onClick={() => toggleWordSelection(word.id)}
                   className={`cursor-pointer ${
                     selectedWords.includes(word.id)
-                      ? 'bg-purple-600 hover:bg-purple-700'
-                      : 'bg-gray-600 hover:bg-gray-500'
+                      ? 'bg-purple-600 text-white'
+                      : 'bg-gray-600 text-gray-300 hover:bg-gray-500'
                   }`}
                 >
-                  {word.word} (Potency: {word.potency})
+                  {word.word} ({word.potency})
                 </Badge>
               ))}
             </div>
-            <p className="text-sm text-gray-400 mt-2">
-              Total Potency: <span className="text-yellow-400 font-semibold">+{totalPotency}</span>
-            </p>
           </div>
 
-          {/* Word Count Tracker */}
-          <div className="flex items-center justify-between bg-gray-800 rounded-lg p-3">
-            <span className="text-sm text-gray-300">Word Count:</span>
-            <span className={`text-lg font-semibold ${
-              wordCount >= 2 ? 'text-emerald-400' : 'text-red-400'
-            }`}>
-              {wordCount}/2 minimum
-            </span>
+          {/* Dice Roller */}
+          <DiceRoller
+            onRoll={setDiceRoll}
+            potency={totalPotency}
+            disabled={!isMyTurn}
+          />
+
+          {/* Action Summary */}
+          <div className="bg-gray-800 rounded-lg p-4">
+            <h4 className="text-sm font-medium text-gray-300 mb-2">Action Summary</h4>
+            <div className="space-y-1 text-sm">
+              <div className="flex justify-between">
+                <span className="text-gray-400">Words Used:</span>
+                <span className="text-white">{wordCount}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-400">Total Potency:</span>
+                <span className="text-purple-400">{totalPotency}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-400">Dice Roll:</span>
+                <span className="text-yellow-400">
+                  {diceRoll.length > 0 ? diceRoll.join(' + ') + ' = ' + diceRoll.reduce((a, b) => a + b, 0) : 'Not rolled'}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-400">Final Result:</span>
+                <span className="text-green-400">
+                  {diceRoll.length > 0 ? diceRoll.reduce((a, b) => a + b, 0) + totalPotency : 'N/A'}
+                </span>
+              </div>
+            </div>
           </div>
 
-          <Button 
+          {/* Submit Button */}
+          <Button
             onClick={handleSubmitAction}
-            disabled={!isMyTurn || wordCount < 2 || diceRoll.length === 0 || submitActionMutation.isPending}
+            disabled={!isMyTurn || submitActionMutation.isPending || wordCount < 2 || diceRoll.length === 0}
             className="w-full bg-purple-600 hover:bg-purple-700"
           >
-            Submit Combat Action
+            {submitActionMutation.isPending ? "Submitting..." : "Submit Combat Action"}
           </Button>
         </CardContent>
       </Card>
-
-      {/* Dice Rolling */}
-      <DiceRoller 
-        onRoll={setDiceRoll}
-        potency={totalPotency}
-        disabled={!isMyTurn}
-      />
 
       {/* Combat Log */}
       <Card className="bg-gray-700">
@@ -241,35 +258,29 @@ export default function PlayerPanel({
             Combat Log
           </CardTitle>
         </CardHeader>
-        <CardContent>
-          <div className="space-y-3 max-h-64 overflow-y-auto">
-            {combatLog.length === 0 ? (
-              <p className="text-gray-400 text-center py-4">No combat actions yet</p>
-            ) : (
-              combatLog.map((entry) => (
-                <div
-                  key={entry.id}
-                  className="bg-gray-800 rounded-lg p-3 border-l-4 border-purple-400"
-                >
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="font-semibold text-purple-400">
-                      {entry.player?.firstName || entry.player?.email || 'Player'}
-                    </span>
-                    <span className="text-xs text-gray-400">
-                      Turn {entry.turnNumber}
-                    </span>
-                  </div>
-                  <p className="text-sm text-gray-300 mb-1">"{entry.sentence}"</p>
-                  <p className="text-xs text-gray-400">
-                    Roll: 2d6({entry.diceRoll}) + Potency({entry.totalPotency}) = 
-                    <span className="text-emerald-400 font-semibold ml-1">
-                      {entry.finalResult}
-                    </span>
-                  </p>
+        <CardContent className="space-y-3 max-h-96 overflow-y-auto">
+          {combatLog && combatLog.length > 0 ? (
+            combatLog.map((entry, index) => (
+              <div key={entry.id || index} className="bg-gray-800 rounded-lg p-3">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="font-semibold text-purple-400 text-sm">
+                    Turn {entry.turnNumber || index + 1}
+                  </span>
+                  <span className="text-sm text-gray-400">
+                    {entry.player?.playerName || entry.player?.user?.firstName || entry.player?.user?.email || 'Player'}
+                  </span>
                 </div>
-              ))
-            )}
-          </div>
+                <p className="text-sm text-white mb-2">{entry.sentence}</p>
+                <div className="flex items-center justify-between text-xs text-gray-400">
+                  <span>Dice: {entry.diceRoll}</span>
+                  <span>Potency: {entry.totalPotency}</span>
+                  <span>Result: {entry.finalResult}</span>
+                </div>
+              </div>
+            ))
+          ) : (
+            <p className="text-gray-400 text-center py-4">No combat actions yet</p>
+          )}
         </CardContent>
       </Card>
     </div>

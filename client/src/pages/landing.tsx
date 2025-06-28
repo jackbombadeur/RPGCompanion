@@ -8,9 +8,31 @@ import { Dice1, Users, Sword, BookOpen } from "lucide-react";
 export default function Landing() {
   const [sessionCode, setSessionCode] = useState("");
 
-  const handleLogin = () => {
-    // For demo, just redirect to home
+  const handleEnterGame = () => {
+    // Create a temporary user to get past authentication
+    const tempUser = {
+      id: `temp-${Date.now()}`,
+      email: "demo@example.com",
+      firstName: "Demo",
+      lastName: "User",
+      profileImageUrl: null,
+    };
+    
+    // Store in localStorage to pass authentication check
+    localStorage.setItem('currentUser', JSON.stringify(tempUser));
+    
+    // Redirect to home page
     window.location.href = "/";
+  };
+
+  const handleJoinWithCode = () => {
+    if (sessionCode.trim()) {
+      // If they have a session code, redirect to home with the code pre-filled
+      localStorage.setItem('prefillJoinCode', sessionCode.toUpperCase());
+      handleEnterGame();
+    } else {
+      handleEnterGame();
+    }
   };
 
   return (
@@ -21,12 +43,12 @@ export default function Landing() {
           <div className="flex items-center justify-center mb-8">
             <Dice1 className="h-16 w-16 text-purple-400 mr-4" />
             <h1 className="text-6xl font-bold text-white">
-              Nerve Combat
+              Sky Block Rivals
             </h1>
           </div>
           <p className="text-xl text-gray-300 max-w-3xl mx-auto">
-            A nerve-based combat TTRPG where players fight using sentences with dice rolls modified by word potency. 
-            Create words, lose nerve, and battle with the power of language.
+          A mini competitive TTRPG for 1 Bookworm (the referee) & 2-4 other Players.
+          You'll only need some D6 dice, some writing supplies, and a few hours.
           </p>
         </div>
 
@@ -89,7 +111,7 @@ export default function Landing() {
                 />
               </div>
               <Button 
-                onClick={handleLogin}
+                onClick={handleJoinWithCode}
                 className="w-full bg-purple-600 hover:bg-purple-700 text-white"
               >
                 Enter Game (Demo Mode)

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -12,22 +12,35 @@ import { useLocation } from "wouter";
 
 export default function Home() {
   const [, setLocation] = useLocation();
-  const { user } = useAuth();
+  const { user, setUser } = useAuth();
   const { toast } = useToast();
   const [sessionName, setSessionName] = useState("");
   const [joinCode, setJoinCode] = useState("");
+
+  // Check for pre-filled join code from landing page
+  useEffect(() => {
+    const prefillCode = localStorage.getItem('prefillJoinCode');
+    if (prefillCode) {
+      setJoinCode(prefillCode);
+      localStorage.removeItem('prefillJoinCode'); // Clear it after use
+    }
+  }, []);
 
   const createSessionMutation = useMutation({
     mutationFn: async (data: { name: string }) => {
       const response = await apiRequest("POST", "/api/sessions", data);
       return response.json();
     },
-    onSuccess: (session) => {
+    onSuccess: (data) => {
+      // Store the GM user information
+      localStorage.setItem('currentUser', JSON.stringify(data.user));
+      setUser(data.user);
+      
       toast({
         title: "Session Created",
-        description: `Session code: ${session.code}`,
+        description: `Session code: ${data.session.code}`,
       });
-      setLocation(`/session/${session.id}`);
+      setLocation(`/session/${data.session.id}`);
     },
     onError: (error) => {
       toast({
@@ -44,6 +57,10 @@ export default function Home() {
       return response.json();
     },
     onSuccess: (data) => {
+      // Store the player user information
+      localStorage.setItem('currentUser', JSON.stringify(data.user));
+      setUser(data.user);
+      
       toast({
         title: "Joined Session",
         description: `Welcome to ${data.session.name}`,
@@ -72,7 +89,9 @@ export default function Home() {
   };
 
   const handleLogout = () => {
-    // For demo, just reload the page
+    // Clear user data and reload
+    localStorage.removeItem('currentUser');
+    setUser(null);
     window.location.reload();
   };
 
@@ -84,11 +103,11 @@ export default function Home() {
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-4">
               <Dice1 className="h-8 w-8 text-purple-400" />
-              <h1 className="text-2xl font-bold text-white">Nerve Combat</h1>
+              <h1 className="text-2xl font-bold text-white">Sky Block Rivals</h1>
             </div>
             <div className="flex items-center space-x-4">
               <div className="text-sm text-gray-300">
-                Welcome, {user?.firstName || user?.email || "Demo User"}
+                Welcome, {user?.firstName || user?.email || "Adventurer"}
               </div>
               <Button 
                 onClick={handleLogout}

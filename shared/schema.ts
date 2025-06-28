@@ -42,6 +42,7 @@ export const gameSessions = pgTable("game_sessions", {
   name: varchar("name", { length: 100 }).notNull(),
   gmId: varchar("gm_id").notNull(),
   encounterSentence: text("encounter_sentence"),
+  currentTurn: integer("current_turn").default(1), // Track current turn number
   isActive: boolean("is_active").default(true),
   createdAt: timestamp("created_at").defaultNow(),
 });
@@ -51,10 +52,12 @@ export const sessionPlayers = pgTable("session_players", {
   id: serial("id").primaryKey(),
   sessionId: integer("session_id").notNull(),
   userId: varchar("user_id").notNull(),
+  playerName: varchar("player_name", { length: 100 }), // Randomly generated player name
   nerve: integer("nerve").default(8),
   maxNerve: integer("max_nerve").default(8),
   turnOrder: integer("turn_order"),
   isActive: boolean("is_active").default(true),
+  isActiveTurn: boolean("is_active_turn").default(false), // Track which player is currently active
   joinedAt: timestamp("joined_at").defaultNow(),
 });
 
@@ -64,10 +67,11 @@ export const words = pgTable("words", {
   sessionId: integer("session_id").notNull(),
   word: varchar("word", { length: 50 }).notNull(),
   meaning: text("meaning").notNull(),
-  potency: integer("potency").notNull(),
+  potency: integer("potency"), // Can be null if pending GM approval
   ownerId: varchar("owner_id").notNull(),
-  wordType: varchar("word_type", { length: 20 }),
+  isApproved: boolean("is_approved").default(false), // GM approval status
   createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
 });
 
 // Combat log

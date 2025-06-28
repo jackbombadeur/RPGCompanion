@@ -6,47 +6,32 @@ import { Label } from "@/components/ui/label";
 import { useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { Settings, Edit, BookOpen, Heart, FastForward, Crown } from "lucide-react";
+import { useAuth } from "@/hooks/useAuth";
+import { Settings, BookOpen, Heart, Crown, Users } from "lucide-react";
 
 interface GameMasterPanelProps {
   sessionId: number;
   players: any[];
-  session: any;
+  currentUser: any;
 }
 
-export default function GameMasterPanel({ sessionId, players, session }: GameMasterPanelProps) {
+export default function GameMasterPanel({ sessionId, players, currentUser }: GameMasterPanelProps) {
   const [isPanelOpen, setIsPanelOpen] = useState(false);
-  const [encounterSentence, setEncounterSentence] = useState(session.encounterSentence || "");
   const [selectedPlayer, setSelectedPlayer] = useState<any>(null);
   const [nerveAdjustment, setNerveAdjustment] = useState(0);
   const { toast } = useToast();
-
-  const updateEncounterMutation = useMutation({
-    mutationFn: async (data: { sentence: string }) => {
-      const response = await apiRequest("PATCH", `/api/sessions/${sessionId}/encounter`, data);
-      return response.json();
-    },
-    onSuccess: () => {
-      toast({
-        title: "Encounter Updated",
-        description: "Encounter sentence has been updated",
-      });
-      queryClient.invalidateQueries({ queryKey: ['/api/sessions', sessionId] });
-    },
-    onError: () => {
-      toast({
-        title: "Error",
-        description: "Failed to update encounter",
-        variant: "destructive",
-      });
-    },
-  });
+  const { user } = useAuth();
 
   const adjustNerveMutation = useMutation({
     mutationFn: async (data: { userId: string; nerve: number }) => {
       const response = await apiRequest("PATCH", `/api/sessions/${sessionId}/players/${data.userId}/nerve`, {
-        nerve: data.nerve
+        nerve: data.nerve,
+        userId: user?.id,
       });
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || "Failed to adjust nerve");
+      }
       return response.json();
     },
     onSuccess: () => {
@@ -58,26 +43,14 @@ export default function GameMasterPanel({ sessionId, players, session }: GameMas
       setNerveAdjustment(0);
       queryClient.invalidateQueries({ queryKey: ['/api/sessions', sessionId] });
     },
-    onError: () => {
+    onError: (error: any) => {
       toast({
         title: "Error",
-        description: "Failed to adjust nerve",
+        description: error.message || "Failed to adjust nerve",
         variant: "destructive",
       });
     },
   });
-
-  const handleUpdateEncounter = () => {
-    if (!encounterSentence.trim()) {
-      toast({
-        title: "Invalid Encounter",
-        description: "Encounter sentence cannot be empty",
-        variant: "destructive",
-      });
-      return;
-    }
-    updateEncounterMutation.mutate({ sentence: encounterSentence });
-  };
 
   const handleAdjustNerve = () => {
     if (!selectedPlayer || nerveAdjustment < 0 || nerveAdjustment > 8) {
@@ -112,42 +85,6 @@ export default function GameMasterPanel({ sessionId, players, session }: GameMas
           </h4>
 
           <div className="space-y-3">
-            {/* Edit Encounter */}
-            <Dialog>
-              <DialogTrigger asChild>
-                <Button className="w-full bg-purple-600 hover:bg-purple-700 text-sm">
-                  <Edit className="mr-2 h-4 w-4" />
-                  Edit Encounter
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="bg-gray-800 border-gray-600">
-                <DialogHeader>
-                  <DialogTitle className="text-white">Edit Encounter</DialogTitle>
-                </DialogHeader>
-                <div className="space-y-4">
-                  <div>
-                    <Label htmlFor="encounter" className="text-gray-300">
-                      Encounter Sentence (3 words recommended)
-                    </Label>
-                    <Input
-                      id="encounter"
-                      value={encounterSentence}
-                      onChange={(e) => setEncounterSentence(e.target.value)}
-                      className="bg-gray-700 border-gray-600 text-white"
-                      placeholder="Ancient shadows whisper"
-                    />
-                  </div>
-                  <Button
-                    onClick={handleUpdateEncounter}
-                    disabled={updateEncounterMutation.isPending}
-                    className="w-full bg-purple-600 hover:bg-purple-700"
-                  >
-                    {updateEncounterMutation.isPending ? "Updating..." : "Update Encounter"}
-                  </Button>
-                </div>
-              </DialogContent>
-            </Dialog>
-
             {/* Adjust Player Nerve */}
             <Dialog>
               <DialogTrigger asChild>
@@ -174,7 +111,7 @@ export default function GameMasterPanel({ sessionId, players, session }: GameMas
                           variant={selectedPlayer?.id === player.id ? "default" : "outline"}
                           className="w-full justify-between"
                         >
-                          <span>{player.user?.firstName || player.user?.email || 'Player'}</span>
+                          <span>{player.playerName || player.user?.firstName || player.user?.email || 'Player'}</span>
                           <span>Nerve: {player.nerve}</span>
                         </Button>
                       ))}
@@ -194,26 +131,18 @@ export default function GameMasterPanel({ sessionId, players, session }: GameMas
                         onChange={(e) => setNerveAdjustment(parseInt(e.target.value) || 0)}
                         className="bg-gray-700 border-gray-600 text-white"
                       />
-                      <Button
-                        onClick={handleAdjustNerve}
-                        disabled={adjustNerveMutation.isPending}
-                        className="w-full mt-2 bg-yellow-600 hover:bg-yellow-700"
-                      >
-                        {adjustNerveMutation.isPending ? "Adjusting..." : "Adjust Nerve"}
-                      </Button>
                     </div>
                   )}
+                  <Button
+                    onClick={handleAdjustNerve}
+                    disabled={adjustNerveMutation.isPending || !selectedPlayer}
+                    className="w-full bg-yellow-600 hover:bg-yellow-700"
+                  >
+                    {adjustNerveMutation.isPending ? "Adjusting..." : "Adjust Nerve"}
+                  </Button>
                 </div>
               </DialogContent>
             </Dialog>
-
-            <Button 
-              onClick={() => setIsPanelOpen(false)}
-              variant="outline" 
-              className="w-full text-sm border-gray-600"
-            >
-              Close Panel
-            </Button>
           </div>
         </div>
       )}
