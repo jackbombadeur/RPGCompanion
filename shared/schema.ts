@@ -42,9 +42,20 @@ export const gameSessions = pgTable("game_sessions", {
   name: varchar("name", { length: 100 }).notNull(),
   gmId: varchar("gm_id").notNull(),
   encounterSentence: text("encounter_sentence"),
+  encounterNoun: varchar("encounter_noun", { length: 50 }),
+  encounterVerb: varchar("encounter_verb", { length: 50 }),
+  encounterAdjective: varchar("encounter_adjective", { length: 50 }),
+  encounterThreat: integer("encounter_threat"),
+  encounterDifficulty: integer("encounter_difficulty"),
+  encounterLength: integer("encounter_length"),
+  isPrepTurn: boolean("is_prep_turn").default(false), // Track if we're in prep turn
+  currentPrepWordIndex: integer("current_prep_word_index").default(0), // Which word is being defined (0=noun, 1=verb, 2=adjective)
+  currentPrepWordTurnCount: integer("current_prep_word_turn_count").default(0), // How many turns have been taken for the current word
+  vowels: jsonb("vowels").default('["Ba", "Li", "Ske", "Po", "Nu", "Hee"]'),
   currentTurn: integer("current_turn").default(1), // Track current turn number
   isActive: boolean("is_active").default(true),
   createdAt: timestamp("created_at").defaultNow(),
+  prepWordMeanings: jsonb("prep_word_meanings").default('{}'), // Temporary meanings for prep phase
 });
 
 // Session players
@@ -67,11 +78,19 @@ export const words = pgTable("words", {
   sessionId: integer("session_id").notNull(),
   word: varchar("word", { length: 50 }).notNull(),
   meaning: text("meaning").notNull(),
+  category: varchar("category", { length: 20 }).default("noun"), // noun, verb, or adjective
   potency: integer("potency"), // Can be null if pending GM approval
-  ownerId: varchar("owner_id").notNull(),
   isApproved: boolean("is_approved").default(false), // GM approval status
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Word owners (many-to-many relationship)
+export const wordOwners = pgTable("word_owners", {
+  id: serial("id").primaryKey(),
+  wordId: integer("word_id").notNull(),
+  ownerId: varchar("owner_id").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
 });
 
 // Combat log
@@ -110,13 +129,21 @@ export const sessionPlayersRelations = relations(sessionPlayers, ({ one }) => ({
   }),
 }));
 
-export const wordsRelations = relations(words, ({ one }) => ({
+export const wordsRelations = relations(words, ({ one, many }) => ({
   session: one(gameSessions, {
     fields: [words.sessionId],
     references: [gameSessions.id],
   }),
+  owners: many(wordOwners),
+}));
+
+export const wordOwnersRelations = relations(wordOwners, ({ one }) => ({
+  word: one(words, {
+    fields: [wordOwners.wordId],
+    references: [words.id],
+  }),
   owner: one(users, {
-    fields: [words.ownerId],
+    fields: [wordOwners.ownerId],
     references: [users.id],
   }),
 }));
@@ -157,7 +184,8 @@ export const insertCombatLogSchema = createInsertSchema(combatLog).omit({
 export type UpsertUser = typeof users.$inferInsert;
 export type User = typeof users.$inferSelect;
 export type GameSession = typeof gameSessions.$inferSelect;
-export type InsertGameSession = z.infer<typeof insertGameSessionSchema>;
+export type InsertGameSession = typeof gameSessions.$inferInsert;
+export type UpdateGameSession = Partial<InsertGameSession> & { id: number };
 export type SessionPlayer = typeof sessionPlayers.$inferSelect;
 export type InsertSessionPlayer = z.infer<typeof insertSessionPlayerSchema>;
 export type Word = typeof words.$inferSelect;

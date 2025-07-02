@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useParams, useLocation, useNavigate } from "wouter";
+import { useParams, useLocation } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/useAuth";
@@ -10,6 +10,7 @@ import EncounterHeader from "@/components/EncounterHeader";
 import PlayerPanel from "@/components/PlayerPanel";
 import WordDictionary from "@/components/WordDictionary";
 import GameMasterPanel from "@/components/GameMasterPanel";
+import PrepTurnPanel from "@/components/PrepTurnPanel";
 import DiceRoller from "@/components/DiceRoller";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -51,6 +52,15 @@ interface SessionData {
   name: string;
   gmId: string;
   encounterSentence: string | null;
+  encounterNoun: string | null;
+  encounterVerb: string | null;
+  encounterAdjective: string | null;
+  encounterThreat: number | null;
+  encounterDifficulty: number | null;
+  encounterLength: number | null;
+  isPrepTurn: boolean;
+  currentPrepWordIndex: number;
+  vowels: string[];
   currentTurn: number;
   isActive: boolean;
   createdAt: string;
@@ -123,12 +133,35 @@ export default function Session() {
         case 'encounter_updated':
         case 'word_approved':
         case 'turn_advanced':
-          // Invalidate session data to refetch
+        case 'word_ownership_updated':
+        case 'word_defined':
+        case 'potency_set':
+        case 'stats_modified':
+        case 'prep_turn_advanced':
+          // Invalidate both session and pending words queries
           queryClient.invalidateQueries({ queryKey: ['/api/sessions', sessionId] });
+          queryClient.invalidateQueries({ queryKey: ['/api/sessions', sessionId, 'pending-words'] });
+          
+          // Show toast for prep turn events
+          if (lastMessage.type === 'prep_turn_advanced' && lastMessage.data) {
+            const { isPrepTurn, currentPrepWordIndex } = lastMessage.data;
+            if (isPrepTurn) {
+              const wordTypes = ['noun', 'verb', 'adjective'];
+              toast({
+                title: "Prep Turn Advanced",
+                description: `Now defining ${wordTypes[currentPrepWordIndex]}`,
+              });
+            } else {
+              toast({
+                title: "Prep Turn Complete",
+                description: "All words defined! The encounter begins.",
+              });
+            }
+          }
           break;
       }
     }
-  }, [lastMessage, sessionId, queryClient]);
+  }, [lastMessage, sessionId, queryClient, toast]);
 
   if (isLoading) {
     return (
@@ -157,8 +190,18 @@ export default function Session() {
   const activePlayer = sessionData.players.find(p => p.isActiveTurn);
   const isActivePlayer = activePlayer?.userId === user?.id;
 
+  // Filter out the GM pseudo-player for player lists and turn order
+  const realPlayers = sessionData.players.filter(p => p.id !== -1);
+
   return (
     <div className="min-h-screen bg-gray-900 text-white">
+      {/* Persistent GM/Player status banner */}
+      <div style={{ position: 'fixed', top: 12, right: 12, zIndex: 1000 }}>
+        <div className={isGM ? 'bg-yellow-900 text-yellow-300' : 'bg-gray-800 text-gray-300'}
+          style={{ padding: '8px 16px', borderRadius: 8, fontWeight: 'bold', boxShadow: '0 2px 8px rgba(0,0,0,0.2)' }}>
+          {isGM ? 'Game Master (GM)' : 'Player'}
+        </div>
+      </div>
       <AppHeader session={{ id: sessionData.id, code: sessionData.code, name: sessionData.name }} />
       
       {/* Turn Counter and Controls */}
@@ -198,6 +241,30 @@ export default function Session() {
 
       <EncounterHeader 
         encounterSentence={sessionData.encounterSentence}
+        encounterNoun={sessionData.encounterNoun}
+        encounterVerb={sessionData.encounterVerb}
+        encounterAdjective={sessionData.encounterAdjective}
+        encounterThreat={sessionData.encounterThreat}
+        encounterDifficulty={sessionData.encounterDifficulty}
+        encounterLength={sessionData.encounterLength}
+        vowels={sessionData.vowels}
+        isGM={isGM}
+      />
+
+      {/* Prep Turn Panel */}
+      <PrepTurnPanel
+        sessionId={sessionId}
+        players={realPlayers}
+        currentUser={user}
+        isPrepTurn={sessionData.isPrepTurn}
+        currentPrepWordIndex={sessionData.currentPrepWordIndex}
+        encounterNoun={sessionData.encounterNoun}
+        encounterVerb={sessionData.encounterVerb}
+        encounterAdjective={sessionData.encounterAdjective}
+        encounterThreat={sessionData.encounterThreat}
+        encounterDifficulty={sessionData.encounterDifficulty}
+        encounterLength={sessionData.encounterLength}
+        lastMessage={lastMessage}
         isGM={isGM}
       />
 
@@ -206,7 +273,7 @@ export default function Session() {
           <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
             <div className="lg:col-span-3">
               <PlayerPanel 
-                players={sessionData.players}
+                players={realPlayers}
                 words={sessionData.words}
                 combatLog={sessionData.combatLog}
                 currentUser={user}
@@ -220,7 +287,9 @@ export default function Session() {
                 sessionId={sessionId}
                 isGM={isGM}
                 isActivePlayer={isActivePlayer}
-                players={sessionData.players}
+                players={realPlayers}
+                vowels={sessionData.vowels}
+                gmId={sessionData.gmId}
               />
             </div>
           </div>
@@ -230,8 +299,9 @@ export default function Session() {
       {isGM && (
         <GameMasterPanel 
           sessionId={sessionId}
-          players={sessionData.players}
+          players={realPlayers}
           currentUser={user}
+          vowels={sessionData.vowels}
         />
       )}
     </div>

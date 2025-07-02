@@ -82,7 +82,7 @@ export function useWebSocket(sessionId: number | null) {
     wsRef.current = ws;
 
     ws.onopen = () => {
-      console.log('WebSocket connected successfully');
+      console.log('[WebSocket] Connected successfully');
       setIsConnected(true);
       setError(null);
       
@@ -91,14 +91,14 @@ export function useWebSocket(sessionId: number | null) {
         type: 'join_session',
         sessionId: numericSessionId
       };
-      console.log('Sending join message:', joinMessage);
+      console.log('[WebSocket] Sending join message:', joinMessage);
       ws.send(JSON.stringify(joinMessage));
     };
 
     ws.onmessage = (event) => {
       try {
         const message = JSON.parse(event.data);
-        console.log('Received WebSocket message:', message);
+        console.log('[WebSocket] Received message:', message);
         setLastMessage(message);
       } catch (error) {
         console.error('Failed to parse WebSocket message:', error);

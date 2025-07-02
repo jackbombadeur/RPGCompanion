@@ -14,6 +14,7 @@ import {
   type InsertWord,
   type CombatLogEntry,
   type InsertCombatLogEntry,
+  wordOwners,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, desc, isNull } from "drizzle-orm";
@@ -27,7 +28,19 @@ export interface IStorage {
   createGameSession(session: InsertGameSession): Promise<GameSession>;
   getGameSessionByCode(code: string): Promise<GameSession | undefined>;
   getGameSession(id: number): Promise<GameSession | undefined>;
-  updateEncounterSentence(sessionId: number, sentence: string): Promise<void>;
+  updateEncounter(sessionId: number, encounterData: {
+    sentence: string;
+    threat?: number;
+    difficulty?: number;
+    length?: number;
+    noun?: string;
+    verb?: string;
+    adjective?: string;
+    isPrepTurn?: boolean;
+    currentPrepWordIndex?: number;
+    currentPrepWordTurnCount?: number;
+  }): Promise<void>;
+  updateSessionVowels(sessionId: number, vowels: string[]): Promise<void>;
   advanceToNextPlayer(sessionId: number): Promise<{ nextPlayerId: string; turnIncremented: boolean }>;
   resetTurnsForNewEncounter(sessionId: number): Promise<void>;
   recalculateTurnOrder(sessionId: number): Promise<void>;
@@ -47,10 +60,20 @@ export interface IStorage {
   approveWord(wordId: number, potency: number): Promise<Word>;
   getPendingWords(sessionId: number): Promise<Word[]>;
   deleteWord(wordId: number): Promise<void>;
+  addWordOwner(wordId: number, ownerId: string): Promise<void>;
+  getWordOwners(wordId: number): Promise<string[]>;
+  findWordByText(sessionId: number, wordText: string): Promise<Word | undefined>;
   
   // Combat log operations
   addCombatLogEntry(entry: InsertCombatLogEntry): Promise<CombatLogEntry>;
   getCombatLog(sessionId: number): Promise<CombatLogEntry[]>;
+
+  updateWordApproval(wordId: number, isApproved: boolean, userId: string): Promise<void>;
+  updateWordMeaning(word: string, meaning: string, sessionId: number): Promise<void>;
+  updateWordPotency(word: string, potency: number, sessionId: number): Promise<void>;
+
+  getPrepWordMeanings(sessionId: number): Promise<{ [word: string]: string }>;
+  setPrepWordMeaning(sessionId: number, word: string, meaning: string): Promise<void>;
 }
 
 // In-memory storage for demo mode (no database required)
@@ -59,6 +82,7 @@ export class MemStorage implements IStorage {
   private sessions: Map<number, GameSession> = new Map();
   private sessionPlayers: Map<string, SessionPlayer> = new Map();
   private words: Map<number, Word> = new Map();
+  private wordOwners: Map<number, Set<string>> = new Map(); // wordId -> Set of ownerIds
   private combatLogs: Map<number, CombatLogEntry> = new Map();
   private sessionCounter = 1;
   private wordCounter = 1;
@@ -89,8 +113,19 @@ export class MemStorage implements IStorage {
       name: session.name,
       gmId: session.gmId,
       encounterSentence: session.encounterSentence || null,
+      encounterNoun: session.encounterNoun || null,
+      encounterVerb: session.encounterVerb || null,
+      encounterAdjective: session.encounterAdjective || null,
+      encounterThreat: session.encounterThreat || null,
+      encounterDifficulty: session.encounterDifficulty || null,
+      encounterLength: session.encounterLength || null,
+      isPrepTurn: session.isPrepTurn || false,
+      currentPrepWordIndex: session.currentPrepWordIndex || 0,
+      currentPrepWordTurnCount: 0,
+      vowels: session.vowels || ["Ba", "Li", "Ske", "Po", "Nu", "Hee"],
       currentTurn: session.currentTurn || 1,
       isActive: session.isActive ?? true,
+      prepWordMeanings: session.prepWordMeanings || {},
       createdAt: new Date(),
     };
     this.sessions.set(newSession.id, newSession);
@@ -109,6 +144,34 @@ export class MemStorage implements IStorage {
     const session = this.sessions.get(sessionId);
     if (session) {
       session.encounterSentence = sentence;
+    }
+  }
+
+  async updateEncounter(sessionId: number, encounterData: {
+    sentence: string;
+    threat?: number;
+    difficulty?: number;
+    length?: number;
+    noun?: string;
+    verb?: string;
+    adjective?: string;
+    isPrepTurn?: boolean;
+    currentPrepWordIndex?: number;
+    currentPrepWordTurnCount?: number;
+  }): Promise<void> {
+    const session = this.sessions.get(sessionId);
+    if (session) {
+      session.encounterSentence = encounterData.sentence;
+      if (encounterData.threat !== undefined) session.encounterThreat = encounterData.threat;
+      if (encounterData.difficulty !== undefined) session.encounterDifficulty = encounterData.difficulty;
+      if (encounterData.length !== undefined) session.encounterLength = encounterData.length;
+      if (encounterData.noun !== undefined) session.encounterNoun = encounterData.noun;
+      if (encounterData.verb !== undefined) session.encounterVerb = encounterData.verb;
+      if (encounterData.adjective !== undefined) session.encounterAdjective = encounterData.adjective;
+      if (encounterData.isPrepTurn !== undefined) session.isPrepTurn = encounterData.isPrepTurn;
+      if (encounterData.currentPrepWordIndex !== undefined) session.currentPrepWordIndex = encounterData.currentPrepWordIndex;
+      if (encounterData.currentPrepWordTurnCount !== undefined) session.currentPrepWordTurnCount = encounterData.currentPrepWordTurnCount;
+      this.sessions.set(sessionId, session);
     }
   }
 
@@ -148,27 +211,45 @@ export class MemStorage implements IStorage {
   }
 
   async createWord(word: InsertWord): Promise<Word> {
+    console.log(`[MemStorage.createWord] Creating word:`, word);
     const newWord: Word = {
       id: this.wordCounter++,
       word: word.word,
       sessionId: word.sessionId,
       meaning: word.meaning,
+      category: word.category || "noun",
       potency: word.potency || null,
-      ownerId: word.ownerId,
       isApproved: word.isApproved || false,
       createdAt: new Date(),
       updatedAt: new Date(),
     };
+    console.log(`[MemStorage.createWord] Created word object:`, newWord);
     this.words.set(newWord.id, newWord);
+    console.log(`[MemStorage.createWord] Word stored with ID ${newWord.id}. Total words now: ${this.words.size}`);
+    
+    // Initialize empty owners set for this word
+    this.wordOwners.set(newWord.id, new Set());
+    
     return newWord;
   }
 
   async getSessionWords(sessionId: number): Promise<Word[]> {
-    return Array.from(this.words.values()).filter(w => w.sessionId === sessionId);
+    console.log(`[MemStorage.getSessionWords] Querying words for session ${sessionId}`);
+    console.log(`[MemStorage.getSessionWords] Total words in storage: ${this.words.size}`);
+    const allWords = Array.from(this.words.values());
+    console.log(`[MemStorage.getSessionWords] All words:`, allWords);
+    const filteredWords = allWords.filter(w => w.sessionId === sessionId);
+    console.log(`[MemStorage.getSessionWords] Filtered words for session ${sessionId}:`, filteredWords);
+    return filteredWords;
   }
 
   async getPlayerWords(sessionId: number, ownerId: string): Promise<Word[]> {
-    return Array.from(this.words.values()).filter(w => w.sessionId === sessionId && w.ownerId === ownerId);
+    const playerWordIds = Array.from(this.wordOwners.entries())
+      .filter(([wordId, owners]) => owners.has(ownerId))
+      .map(([wordId]) => wordId);
+    
+    return Array.from(this.words.values())
+      .filter(w => w.sessionId === sessionId && playerWordIds.includes(w.id));
   }
 
   async approveWord(wordId: number, potency: number): Promise<Word> {
@@ -189,6 +270,26 @@ export class MemStorage implements IStorage {
 
   async deleteWord(wordId: number): Promise<void> {
     this.words.delete(wordId);
+    this.wordOwners.delete(wordId);
+  }
+
+  async addWordOwner(wordId: number, ownerId: string): Promise<void> {
+    const owners = this.wordOwners.get(wordId);
+    if (owners) {
+      owners.add(ownerId);
+      this.wordOwners.set(wordId, owners);
+    } else {
+      this.wordOwners.set(wordId, new Set([ownerId]));
+    }
+  }
+
+  async getWordOwners(wordId: number): Promise<string[]> {
+    const owners = this.wordOwners.get(wordId);
+    return owners ? Array.from(owners) : [];
+  }
+
+  async findWordByText(sessionId: number, wordText: string): Promise<Word | undefined> {
+    return Array.from(this.words.values()).find(w => w.sessionId === sessionId && w.word === wordText);
   }
 
   async addCombatLogEntry(entry: InsertCombatLogEntry): Promise<CombatLogEntry> {
@@ -340,6 +441,59 @@ export class MemStorage implements IStorage {
       this.sessionPlayers.set(key, player);
     }
   }
+
+  async updateSessionVowels(sessionId: number, vowels: string[]): Promise<void> {
+    const session = this.sessions.get(sessionId);
+    if (session) {
+      session.vowels = vowels;
+    }
+  }
+
+  async updateWordApproval(wordId: number, isApproved: boolean, userId: string): Promise<void> {
+    const word = this.words.get(wordId);
+    if (word) {
+      word.isApproved = isApproved;
+    }
+  }
+
+  async updateWordMeaning(word: string, meaning: string, sessionId: number): Promise<void> {
+    // Find the word in the session and update its meaning
+    for (const wordEntry of Array.from(this.words.values())) {
+      if (wordEntry.word === word && wordEntry.sessionId === sessionId) {
+        wordEntry.meaning = meaning;
+        break;
+      }
+    }
+  }
+
+  async updateWordPotency(word: string, potency: number, sessionId: number): Promise<void> {
+    // Find the word in the session and update its potency
+    for (const wordEntry of Array.from(this.words.values())) {
+      if (wordEntry.word === word && wordEntry.sessionId === sessionId) {
+        wordEntry.potency = potency;
+        break;
+      }
+    }
+  }
+
+  async getPrepWordMeanings(sessionId: number): Promise<{ [word: string]: string }> {
+    const session = this.sessions.get(sessionId);
+    if (session && typeof session.prepWordMeanings === 'object' && session.prepWordMeanings !== null) {
+      return session.prepWordMeanings as { [word: string]: string };
+    }
+    return {} as { [word: string]: string };
+  }
+
+  async setPrepWordMeaning(sessionId: number, word: string, meaning: string): Promise<void> {
+    const session = this.sessions.get(sessionId);
+    if (session) {
+      if (!session.prepWordMeanings || typeof session.prepWordMeanings !== 'object') {
+        session.prepWordMeanings = {};
+      }
+      (session.prepWordMeanings as { [word: string]: string })[word] = meaning;
+      this.sessions.set(sessionId, session);
+    }
+  }
 }
 
 export class DatabaseStorage implements IStorage {
@@ -400,11 +554,33 @@ export class DatabaseStorage implements IStorage {
     return session;
   }
 
-  async updateEncounterSentence(sessionId: number, sentence: string): Promise<void> {
+  async updateEncounter(sessionId: number, encounterData: {
+    sentence: string;
+    threat?: number;
+    difficulty?: number;
+    length?: number;
+    noun?: string;
+    verb?: string;
+    adjective?: string;
+    isPrepTurn?: boolean;
+    currentPrepWordIndex?: number;
+    currentPrepWordTurnCount?: number;
+  }): Promise<void> {
     if (!db) throw new Error("Database not available");
     await db
       .update(gameSessions)
-      .set({ encounterSentence: sentence })
+      .set({
+        encounterSentence: encounterData.sentence,
+        encounterThreat: encounterData.threat,
+        encounterDifficulty: encounterData.difficulty,
+        encounterLength: encounterData.length,
+        encounterNoun: encounterData.noun,
+        encounterVerb: encounterData.verb,
+        encounterAdjective: encounterData.adjective,
+        isPrepTurn: encounterData.isPrepTurn,
+        currentPrepWordIndex: encounterData.currentPrepWordIndex,
+        currentPrepWordTurnCount: encounterData.currentPrepWordTurnCount,
+      })
       .where(eq(gameSessions.id, sessionId));
   }
 
@@ -449,32 +625,54 @@ export class DatabaseStorage implements IStorage {
     if (!db) throw new Error("Database not available");
     const [newWord] = await db
       .insert(words)
-      .values(word)
+      .values({
+        sessionId: word.sessionId,
+        word: word.word,
+        meaning: word.meaning,
+        category: word.category || "noun",
+        potency: word.potency || null,
+        isApproved: word.isApproved || false,
+      })
       .returning();
     return newWord;
   }
 
   async getSessionWords(sessionId: number): Promise<Word[]> {
     if (!db) throw new Error("Database not available");
-    return await db
+    console.log(`[getSessionWords] Querying words for session ${sessionId}`);
+    const result = await db
       .select()
       .from(words)
       .where(eq(words.sessionId, sessionId));
+    console.log(`[getSessionWords] Found ${result.length} words:`, result);
+    return result;
   }
 
   async getPlayerWords(sessionId: number, ownerId: string): Promise<Word[]> {
     if (!db) throw new Error("Database not available");
-    return await db
-      .select()
+    const results = await db
+      .select({
+        id: words.id,
+        sessionId: words.sessionId,
+        word: words.word,
+        meaning: words.meaning,
+        category: words.category,
+        potency: words.potency,
+        isApproved: words.isApproved,
+        createdAt: words.createdAt,
+        updatedAt: words.updatedAt,
+      })
       .from(words)
-      .where(and(eq(words.sessionId, sessionId), eq(words.ownerId, ownerId)));
+      .innerJoin(wordOwners, eq(words.id, wordOwners.wordId))
+      .where(and(eq(words.sessionId, sessionId), eq(wordOwners.ownerId, ownerId)));
+    return results;
   }
 
   async approveWord(wordId: number, potency: number): Promise<Word> {
     if (!db) throw new Error("Database not available");
     const [updatedWord] = await db
       .update(words)
-      .set({ potency, updatedAt: new Date() })
+      .set({ potency, isApproved: true, updatedAt: new Date() })
       .where(eq(words.id, wordId))
       .returning();
     return updatedWord;
@@ -490,9 +688,41 @@ export class DatabaseStorage implements IStorage {
 
   async deleteWord(wordId: number): Promise<void> {
     if (!db) throw new Error("Database not available");
+    await db.delete(wordOwners).where(eq(wordOwners.wordId, wordId));
+    await db.delete(words).where(eq(words.id, wordId));
+  }
+
+  async addWordOwner(wordId: number, ownerId: string): Promise<void> {
+    if (!db) throw new Error("Database not available");
+    console.log('[DEBUG][addWordOwner] Adding owner', { wordId, ownerId });
     await db
-      .delete(words)
-      .where(eq(words.id, wordId));
+      .insert(wordOwners)
+      .values({ wordId, ownerId })
+      .onConflictDoNothing();
+    // Fetch and log owners after insertion
+    const owners = await db
+      .select({ ownerId: wordOwners.ownerId })
+      .from(wordOwners)
+      .where(eq(wordOwners.wordId, wordId));
+    console.log('[DEBUG][addWordOwner] Owners after insert', { wordId, owners });
+  }
+
+  async getWordOwners(wordId: number): Promise<string[]> {
+    if (!db) throw new Error("Database not available");
+    const owners = await db
+      .select({ ownerId: wordOwners.ownerId })
+      .from(wordOwners)
+      .where(eq(wordOwners.wordId, wordId));
+    return owners.map(o => o.ownerId);
+  }
+
+  async findWordByText(sessionId: number, wordText: string): Promise<Word | undefined> {
+    if (!db) throw new Error("Database not available");
+    const [word] = await db
+      .select()
+      .from(words)
+      .where(and(eq(words.sessionId, sessionId), eq(words.word, wordText)));
+    return word;
   }
 
   // Combat log operations
@@ -649,7 +879,67 @@ export class DatabaseStorage implements IStorage {
       .set({ turnOrder: maxTurnOrder + 1 })
       .where(and(eq(sessionPlayers.sessionId, sessionId), eq(sessionPlayers.userId, userId)));
   }
+
+  async updateSessionVowels(sessionId: number, vowels: string[]): Promise<void> {
+    if (!db) throw new Error("Database not available");
+    await db
+      .update(gameSessions)
+      .set({ vowels })
+      .where(eq(gameSessions.id, sessionId));
+  }
+
+  async updateWordApproval(wordId: number, isApproved: boolean, userId: string): Promise<void> {
+    if (!db) throw new Error("Database not available");
+    await db
+      .update(words)
+      .set({ isApproved })
+      .where(eq(words.id, wordId));
+  }
+
+  async updateWordMeaning(word: string, meaning: string, sessionId: number): Promise<void> {
+    if (!db) throw new Error("Database not available");
+    await db
+      .update(words)
+      .set({ meaning })
+      .where(and(eq(words.sessionId, sessionId), eq(words.word, word)));
+  }
+
+  async updateWordPotency(word: string, potency: number, sessionId: number): Promise<void> {
+    if (!db) throw new Error("Database not available");
+    await db
+      .update(words)
+      .set({ potency })
+      .where(and(eq(words.sessionId, sessionId), eq(words.word, word)));
+  }
+
+  async getPrepWordMeanings(sessionId: number): Promise<{ [word: string]: string }> {
+    if (!db) throw new Error("Database not available");
+    const session = await this.getGameSession(sessionId);
+    if (session && typeof session.prepWordMeanings === 'object' && session.prepWordMeanings !== null) {
+      return session.prepWordMeanings as { [word: string]: string };
+    }
+    return {} as { [word: string]: string };
+  }
+
+  async setPrepWordMeaning(sessionId: number, word: string, meaning: string): Promise<void> {
+    if (!db) throw new Error("Database not available");
+    const session = await this.getGameSession(sessionId);
+    if (session) {
+      let prepWordMeanings: { [word: string]: string } = {};
+      if (session.prepWordMeanings && typeof session.prepWordMeanings === 'object') {
+        prepWordMeanings = { ...session.prepWordMeanings as { [word: string]: string } };
+      }
+      prepWordMeanings[word] = meaning;
+      await db
+        .update(gameSessions)
+        .set({ prepWordMeanings })
+        .where(eq(gameSessions.id, sessionId));
+    }
+  }
 }
 
 // Use database storage if DATABASE_URL is provided, otherwise use in-memory storage
 export const storage = process.env.DATABASE_URL ? new DatabaseStorage() : new MemStorage();
+
+// Add debugging to show which storage is being used
+console.log(`[Storage] Using ${process.env.DATABASE_URL ? 'DatabaseStorage' : 'MemStorage'}`);

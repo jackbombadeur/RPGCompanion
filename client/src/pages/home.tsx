@@ -14,7 +14,7 @@ export default function Home() {
   const [, setLocation] = useLocation();
   const { user, setUser } = useAuth();
   const { toast } = useToast();
-  const [sessionName, setSessionName] = useState("");
+  const [sessionName, setSessionName] = useState("Bob");
   const [joinCode, setJoinCode] = useState("");
 
   // Check for pre-filled join code from landing page
